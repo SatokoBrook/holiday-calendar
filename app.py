@@ -252,7 +252,7 @@ def render_roadmap_tab():
 | Phase 5 | 祝日の重複日（同日に日豪の祝日が重なる日）を目立たせる表示 | 🔲 次候補 |
 | Phase 6 | .ics（カレンダーアプリ取込み用）エクスポート機能 | 🔲 未定 |
 | Phase 7 | VIC以外の豪州州（NSW・QLDなど）を選べるように拡張 | 🔲 未定 |
-| Phase 8 | Webデプロイ（Streamlit Community Cloud / Railway 等） | 🔲 未定 |
+| Phase 8 | Webデプロイ（Railway、https://holiday-calendar-production.up.railway.app） | ✅ 完了 |
         """
     )
     st.info("要望ベースで随時更新してください。", icon="💡")
