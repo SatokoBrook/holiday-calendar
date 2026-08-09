@@ -8,6 +8,7 @@ from datetime import date
 from pathlib import Path
 
 import holidays
+import requests
 import streamlit as st
 
 st.set_page_config(page_title="祝日カレンダー 2026-2027", page_icon="📅", layout="wide")
@@ -18,6 +19,35 @@ JP_COLOR, AU_COLOR = "#e74c3c", "#2980b9"
 MEMO_MARK = "📝"
 MONTH_NAMES_JA = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
 WEEKDAY_NAMES_JA = ["月", "火", "水", "木", "金", "土", "日"]
+
+WEATHER_CITIES = [
+    {"label": "東京", "flag": JP_FLAG, "lat": 35.6895, "lon": 139.6917, "tz": "Asia/Tokyo"},
+    {"label": "メルボルン", "flag": AU_FLAG, "lat": -37.8136, "lon": 144.9631, "tz": "Australia/Melbourne"},
+]
+
+WEATHER_CODE_MAP = {
+    0: ("☀️", "快晴"),
+    1: ("🌤️", "ほぼ晴れ"),
+    2: ("⛅", "晴れ時々曇り"),
+    3: ("☁️", "曇り"),
+    45: ("🌫️", "霧"),
+    48: ("🌫️", "霧（霜）"),
+    51: ("🌦️", "弱い霧雨"),
+    53: ("🌦️", "霧雨"),
+    55: ("🌧️", "強い霧雨"),
+    61: ("🌧️", "弱い雨"),
+    63: ("🌧️", "雨"),
+    65: ("🌧️", "強い雨"),
+    71: ("🌨️", "弱い雪"),
+    73: ("🌨️", "雪"),
+    75: ("❄️", "強い雪"),
+    80: ("🌦️", "にわか雨"),
+    81: ("🌧️", "強めのにわか雨"),
+    82: ("⛈️", "激しいにわか雨"),
+    95: ("⛈️", "雷雨"),
+    96: ("⛈️", "雷雨（ひょう）"),
+    99: ("⛈️", "激しい雷雨（ひょう）"),
+}
 
 USERS_FILE = Path(__file__).parent / "users.json"
 DATA_DIR = Path(__file__).parent / "user_data"
@@ -74,6 +104,35 @@ def load_events(username: str) -> dict[str, list[str]]:
 
 def save_events(username: str, events: dict[str, list[str]]) -> None:
     events_file_for(username).write_text(json.dumps(events, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+@st.cache_data(ttl=600)
+def fetch_weather(lat: float, lon: float, tz: str) -> dict:
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code&timezone={tz}"
+    )
+    resp = requests.get(url, timeout=5)
+    resp.raise_for_status()
+    current = resp.json()["current"]
+    emoji, desc = WEATHER_CODE_MAP.get(current["weather_code"], ("❓", "不明"))
+    return {"temp": current["temperature_2m"], "emoji": emoji, "desc": desc}
+
+
+def render_weather_section():
+    st.subheader("🌤️ 今日の天気")
+    cols = st.columns(len(WEATHER_CITIES))
+    for c, city in zip(cols, WEATHER_CITIES):
+        with c:
+            try:
+                w = fetch_weather(city["lat"], city["lon"], city["tz"])
+                st.markdown(
+                    f"**{city['flag']} {city['label']}**  \n"
+                    f"# {w['emoji']} {w['temp']}℃  \n"
+                    f"{w['desc']}"
+                )
+            except Exception:
+                st.caption(f"{city['flag']} {city['label']}: 天気情報を取得できませんでした")
 
 
 @st.cache_data
@@ -194,6 +253,9 @@ def render_event_form(username: str):
 
 
 def render_calendar_tab(username: str):
+    render_weather_section()
+    st.divider()
+
     merged = load_holidays()
     events = render_event_form(username)
 
@@ -253,6 +315,7 @@ def render_roadmap_tab():
 | Phase 6 | .ics（カレンダーアプリ取込み用）エクスポート機能 | 🔲 未定 |
 | Phase 7 | VIC以外の豪州州（NSW・QLDなど）を選べるように拡張 | 🔲 未定 |
 | Phase 8 | Webデプロイ（Railway、https://holiday-calendar-production.up.railway.app） | ✅ 完了 |
+| Phase 9 | 今日の天気表示（東京・メルボルン、Open-Meteo API連携） | ✅ 完了 |
         """
     )
     st.info("要望ベースで随時更新してください。", icon="💡")
