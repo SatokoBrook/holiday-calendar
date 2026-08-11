@@ -11,9 +11,10 @@ import holidays
 import requests
 import streamlit as st
 
-st.set_page_config(page_title="祝日カレンダー 2026-2027", page_icon="📅", layout="wide")
+st.set_page_config(page_title="祝日カレンダー 2026-2030", page_icon="📅", layout="wide")
 
-YEARS = [2026, 2027]
+YEARS = [2026, 2027, 2028, 2029, 2030]
+YEAR_RANGE_LABEL = f"{YEARS[0]}-{YEARS[-1]}"
 JP_FLAG, AU_FLAG = "🇯🇵", "🇦🇺"
 JP_COLOR, AU_COLOR = "#e74c3c", "#2980b9"
 MEMO_MARK = "📝"
@@ -252,11 +253,44 @@ def render_event_form(username: str):
     return events
 
 
+def render_search_section(events: dict[str, list[str]]) -> None:
+    query = st.text_input("🔍 保存したメモ・予定をキーワードで検索", placeholder="キーワードを入力...")
+    if query.strip():
+        q = query.strip().lower()
+        matches = [
+            (key, note) for key in sorted(events) for note in events[key] if q in note.lower()
+        ]
+        if matches:
+            st.write(f"{len(matches)}件ヒットしました。")
+            for key, note in matches:
+                st.markdown(f"- **{key}**: {note}")
+        else:
+            st.info("一致するメモ・予定は見つかりませんでした。")
+        st.divider()
+
+
+def render_weekday_lookup(merged: dict, events: dict[str, list[str]]) -> None:
+    st.subheader("📆 日付から曜日を調べる")
+    d = st.date_input("日付を選択", value=date.today(), key="weekday_lookup_date")
+    weekday_name = WEEKDAY_NAMES_JA[d.weekday()]
+    st.write(f"**{d.strftime('%Y年%m月%d日')}** は **{weekday_name}曜日** です。")
+
+    notes = [f"{flag} {name}" for flag, name, _ in merged.get(d, [])] + events.get(d.isoformat(), [])
+    if notes:
+        st.caption(" / ".join(notes))
+    st.divider()
+
+
 def render_calendar_tab(username: str):
+    merged = load_holidays()
+    events_snapshot = load_events(username)
+
+    render_search_section(events_snapshot)
+    render_weekday_lookup(merged, events_snapshot)
+
     render_weather_section()
     st.divider()
 
-    merged = load_holidays()
     events = render_event_form(username)
 
     st.sidebar.header("表示設定")
@@ -322,7 +356,7 @@ def render_roadmap_tab():
 
 
 def render_login():
-    st.title("📅 日本×オーストラリア(VIC) 祝日カレンダー 2026-2027")
+    st.title(f"📅 日本×オーストラリア(VIC) 祝日カレンダー {YEAR_RANGE_LABEL}")
     st.subheader("ログインしてください")
 
     tab_login, tab_register = st.tabs(["ログイン", "新規登録"])
@@ -369,7 +403,7 @@ if st.sidebar.button("ログアウト"):
     st.session_state["user"] = None
     st.rerun()
 
-st.title("📅 日本×オーストラリア(VIC) 祝日カレンダー 2026-2027")
+st.title(f"📅 日本×オーストラリア(VIC) 祝日カレンダー {YEAR_RANGE_LABEL}")
 tab1, tab2 = st.tabs(["カレンダー", "開発ロードマップ"])
 with tab1:
     render_calendar_tab(st.session_state["user"])
