@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 import secrets
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import holidays
@@ -291,6 +291,58 @@ def render_weekday_lookup(merged: dict, events: dict[str, list[str]]) -> None:
     st.divider()
 
 
+def build_ics(entries: list[tuple[date, str]], calendar_name: str) -> str:
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Holiday Calendar//holiday-calendar-app//JA",
+        "CALSCALE:GREGORIAN",
+        f"X-WR-CALNAME:{calendar_name}",
+    ]
+    for d, summary in entries:
+        uid = f"{d.isoformat()}-{hashlib.md5(summary.encode('utf-8')).hexdigest()[:10]}@holiday-calendar-app"
+        summary_escaped = summary.replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;")
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTART;VALUE=DATE:{d.strftime('%Y%m%d')}",
+            f"DTEND;VALUE=DATE:{(d + timedelta(days=1)).strftime('%Y%m%d')}",
+            f"SUMMARY:{summary_escaped}",
+            "END:VEVENT",
+        ]
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines) + "\r\n"
+
+
+def render_export_section(year: int, merged: dict, events: dict[str, list[str]], show_jp: bool, show_au: bool) -> None:
+    st.sidebar.header("📤 エクスポート")
+    include_memos = st.sidebar.checkbox("個人メモも含める", value=True, key="export_include_memos")
+
+    entries: list[tuple[date, str]] = []
+    for d, day_entries in sorted(merged.items()):
+        if d.year != year:
+            continue
+        for flag, name, _ in day_entries:
+            if (flag == JP_FLAG and show_jp) or (flag == AU_FLAG and show_au):
+                entries.append((d, f"{flag} {name}"))
+    if include_memos:
+        for key in sorted(events):
+            d = date.fromisoformat(key)
+            if d.year != year:
+                continue
+            for note in events[key]:
+                entries.append((d, f"{MEMO_MARK} {note}"))
+    entries.sort(key=lambda e: e[0])
+
+    ics_content = build_ics(entries, f"祝日カレンダー {year}")
+    st.sidebar.download_button(
+        f"📤 {year}年分を.icsでダウンロード（{len(entries)}件）",
+        data=ics_content,
+        file_name=f"holiday_calendar_{year}.ics",
+        mime="text/calendar",
+    )
+
+
 def render_calendar_tab(username: str):
     merged = load_holidays()
     events_snapshot = load_events(username)
@@ -308,6 +360,8 @@ def render_calendar_tab(username: str):
     show_jp = st.sidebar.checkbox(f"{JP_FLAG} 日本の祝日", value=True)
     show_au = st.sidebar.checkbox(f"{AU_FLAG} オーストラリアの祝日（全国共通＋VIC州）", value=True)
     view = st.sidebar.radio("表示形式", ["月表示（全月）", "リスト表示"], index=0)
+
+    render_export_section(year, merged, events, show_jp, show_au)
 
     if view == "月表示（全月）":
         st.caption(f"🇯🇵🇦🇺{MEMO_MARK} の付いた日にカーソルを合わせると内容が表示されます。⭐は日豪の祝日が同じ日に重なっている日です。")
@@ -359,7 +413,7 @@ def render_roadmap_tab():
 | Phase 3 | 個人メモ・予定の入力フォーム、ローカル保存 | ✅ 完了 |
 | Phase 4 | ログイン機能（ユーザー名＋パスワード）、ユーザーごとのメモ分離 | ✅ 完了 |
 | Phase 5 | 祝日の重複日（同日に日豪の祝日が重なる日）を目立たせる表示 | ✅ 完了 |
-| Phase 6 | .ics（カレンダーアプリ取込み用）エクスポート機能 | 🔲 未定 |
+| Phase 6 | .ics（カレンダーアプリ取込み用）エクスポート機能 | ✅ 完了 |
 | Phase 7 | VIC以外の豪州州（NSW・QLDなど）を選べるように拡張 | 🔲 未定 |
 | Phase 8 | Webデプロイ（Railway、https://holiday-calendar-production.up.railway.app） | ✅ 完了 |
 | Phase 9 | 今日の天気表示（東京・メルボルン、Open-Meteo API連携） | ✅ 完了 |
