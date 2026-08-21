@@ -174,14 +174,24 @@ def render_month(year: int, month: int, merged: dict, events: dict, show_jp: boo
                     e for e in merged.get(d, []) if (e[0] == JP_FLAG and show_jp) or (e[0] == AU_FLAG and show_au)
                 ]
                 notes = events.get(d.isoformat(), [])
+                flags_present = {e[0] for e in entries}
+                is_overlap = JP_FLAG in flags_present and AU_FLAG in flags_present
                 titles = [e[1] for e in entries] + notes
+                if is_overlap:
+                    titles = ["⭐ 日豪祝日が重複"] + titles
                 if entries or notes:
                     marks = "".join(e[0] for e in entries) + (MEMO_MARK if notes else "")
-                    bg = "#fdeceb" if entries else "#eef7ec"
+                    if is_overlap:
+                        marks = "⭐" + marks
+                        bg = "#fff3cd"
+                        border = "border:2px solid #f0ad4e;"
+                    else:
+                        bg = "#fdeceb" if entries else "#eef7ec"
+                        border = ""
                     c.markdown(
                         f"<div title='{' / '.join(titles)}' "
                         f"style='text-align:center;padding:3px 0;border-radius:4px;"
-                        f"background:{bg};line-height:1.3'>"
+                        f"background:{bg};{border}line-height:1.3'>"
                         f"<div style='font-weight:600'>{day}</div>"
                         f"<div style='font-size:0.75em'>{marks}</div></div>",
                         unsafe_allow_html=True,
@@ -300,7 +310,7 @@ def render_calendar_tab(username: str):
     view = st.sidebar.radio("表示形式", ["月表示（全月）", "リスト表示"], index=0)
 
     if view == "月表示（全月）":
-        st.caption(f"🇯🇵🇦🇺{MEMO_MARK} の付いた日にカーソルを合わせると内容が表示されます。")
+        st.caption(f"🇯🇵🇦🇺{MEMO_MARK} の付いた日にカーソルを合わせると内容が表示されます。⭐は日豪の祝日が同じ日に重なっている日です。")
         for row_start in range(1, 13, 3):
             cols = st.columns(3, gap="medium")
             for i, month in enumerate(range(row_start, row_start + 3)):
@@ -309,14 +319,17 @@ def render_calendar_tab(username: str):
             st.write("")
     else:
         st.markdown(f"### {year}年 祝日リスト")
+        st.caption("⭐は日豪の祝日が同じ日に重なっている日です。")
         rows = []
         for d, entries in sorted(merged.items()):
             if d.year != year:
                 continue
+            visible_flags = {flag for flag, _, _ in entries if (flag == JP_FLAG and show_jp) or (flag == AU_FLAG and show_au)}
+            is_overlap = JP_FLAG in visible_flags and AU_FLAG in visible_flags
             for flag, name, _ in entries:
                 if (flag == JP_FLAG and show_jp) or (flag == AU_FLAG and show_au):
                     rows.append({
-                        "日付": d.strftime("%Y-%m-%d (%a)"),
+                        "日付": d.strftime("%Y-%m-%d (%a)") + ("  ⭐" if is_overlap else ""),
                         "国": "日本" if flag == JP_FLAG else "オーストラリア(VIC)",
                         "祝日名": name,
                     })
@@ -345,7 +358,7 @@ def render_roadmap_tab():
 | Phase 2 | 月表示／リスト表示の切替、開発ロードマップタブ | ✅ 完了 |
 | Phase 3 | 個人メモ・予定の入力フォーム、ローカル保存 | ✅ 完了 |
 | Phase 4 | ログイン機能（ユーザー名＋パスワード）、ユーザーごとのメモ分離 | ✅ 完了 |
-| Phase 5 | 祝日の重複日（同日に日豪の祝日が重なる日）を目立たせる表示 | 🔲 次候補 |
+| Phase 5 | 祝日の重複日（同日に日豪の祝日が重なる日）を目立たせる表示 | ✅ 完了 |
 | Phase 6 | .ics（カレンダーアプリ取込み用）エクスポート機能 | 🔲 未定 |
 | Phase 7 | VIC以外の豪州州（NSW・QLDなど）を選べるように拡張 | 🔲 未定 |
 | Phase 8 | Webデプロイ（Railway、https://holiday-calendar-production.up.railway.app） | ✅ 完了 |
